@@ -94,8 +94,6 @@ func (r *userRepository) LoginUser(u st.User) (st.User, error) {
 // показывает данные всех пользователей
 func (r *userRepository) GetAllUsers(offset, count int) ([]st.UserShow, error) {
 	var userShow []st.UserShow
-	// var user []st.User // users
-	// var params []st.ParamsUser //params_users
 	query := r.db.Table("users").Select("users.id, users.email, pu.name, pu.root").Joins("left join params_users pu on pu.user_id = users.id").Scan(&userShow)
 	err := query.Error
 	return userShow, err
