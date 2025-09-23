@@ -23,7 +23,7 @@
 }<br>
 <br>возвращает
 <br>
-{
-    "Access": "",
-    "Refresh": ""
-}
+{<br>
+    "Access": "",<br>
+    "Refresh": ""<br>
+}<br>
