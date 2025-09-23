@@ -93,8 +93,9 @@ func (r *userRepository) LoginUser(u st.User) (st.User, error) {
 
 // показывает данные всех пользователей
 func (r *userRepository) GetAllUsers(offset, count int) ([]st.UserShow, error) {
+	// fmt.Printf("getAllUsers offset = %v, count = %v", offset, count)
 	var userShow []st.UserShow
-	query := r.db.Table("users").Select("users.id, users.email, pu.name, pu.root").Joins("left join params_users pu on pu.user_id = users.id").Scan(&userShow)
+	query := r.db.Table("users").Select("users.id, users.email, pu.name, pu.root").Joins("left join params_users pu on pu.user_id = users.id").Limit(count).Offset(offset).Scan(&userShow)
 	err := query.Error
 	return userShow, err
 }
@@ -102,7 +103,8 @@ func (r *userRepository) GetAllUsers(offset, count int) ([]st.UserShow, error) {
 // показывает данные пользователя с ид
 func (r *userRepository) GetUserById(id uint64) (st.User, error) {
 	var user st.User
-	err := r.db.Preload("ParamsUser").Preload("AuthUser").Take(&user, id).Error
+	query := r.db.Preload("ParamsUser").Preload("AuthUser").Take(&user, id)
+	err := query.Error
 	return user, err
 }
 

@@ -153,7 +153,7 @@ func GetClaimsFromJWT(tokenString string) (st.TokenClaims, error) {
 
 // создаем AccessJWT
 func MakeAccessJWT(claims st.TokenClaims) (string, error) {
-	fmt.Println("MakeAccessJWT claims ", claims)
+	// fmt.Println("MakeAccessJWT claims ", claims)
 	secretKeyString := env.GetEnvVar("JWT_SECRET_KEY")
 	hmacSampleSecret := []byte(secretKeyString)
 	nowTimeUnix := time.Now().Unix()

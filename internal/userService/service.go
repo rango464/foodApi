@@ -90,7 +90,7 @@ RefreshToken сохраняем в бд с ид пользователя и вр
 func (s *userService) GenerateAndSaveJWT(user st.User) (st.AuthTokens, error) {
 	var authResp st.AuthTokens
 	var tokenClaims st.TokenClaims
-	fmt.Println("GenerateAndSaveJWT user", user)
+	// fmt.Println("GenerateAndSaveJWT user", user)
 	// генерим jwt
 	nowTimeUnix := time.Now().Unix()
 	tokenClaims.Sub = user.ID
@@ -167,7 +167,11 @@ func (s *userService) GetAllUsers(offset, count int) ([]st.UserShow, error) {
 
 // выборка пользователя из бд по ид
 func (s *userService) GetUserById(id uint64) (st.User, error) {
-	return s.repo.GetUserById(id)
+	user, err := s.repo.GetUserById(id)
+	if err != nil { // если нет пользователя с таким id
+		return st.User{}, err
+	}
+	return user, nil
 }
 
 // редактирование параметров пользователя
@@ -175,11 +179,13 @@ func (s *userService) UpdateUserParams(newParams st.ParamsUser) (st.ParamsUser, 
 	userParam, err := s.repo.GetUserParams(newParams.UserID)
 	if err != nil { // если нет пользователя с таким id
 		return st.ParamsUser{}, err
-		// return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid email"})
 	}
 
 	userParam.Name = newParams.Name
-	userParam.Root = newParams.Root
+	if newParams.Root > 0 {
+		userParam.Root = newParams.Root
+	}
+
 	fmt.Println(userParam)
 
 	if err := s.repo.UpdateUserParams(userParam); err != nil {

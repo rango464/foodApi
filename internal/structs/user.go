@@ -15,13 +15,13 @@ type (
 		ID    uint64 // `json:"id" gorm:"primaryKey"`
 		Email string // `json:"email" gorm:"unique"`
 		Name  string // `json:"name" gorm:"default:''"`       // name of user
-		Root  uint8  // `json:"root" gorm:"default=1;size=1"` // доступ (0-superadmin 1-admin 3-moderator 5-superuser 7-simpleuser 9-guest)
+		Root  uint8  // `json:"root" gorm:"default=0;size=1"` // доступ (0-guest 1-simpleuser 3-premiumuser 5-moderator 7-admin 9-superadmin)
 	}
 	ParamsUser struct {
 		ID     uint64 `json:"id" gorm:"primaryKey"`
 		UserID uint64 `json:"uid" gorm:"unique, foreignKey"` // userID
 		Name   string `json:"name" gorm:"default:''"`        // name of user
-		Root   uint8  `json:"root" gorm:"default=9;size=1"`  // доступ (0-superadmin 1-admin 3-moderator 5-superuser 7-simpleuser 9-guest)
+		Root   uint8  `json:"root" gorm:"default=0; size=1"` // доступ (0-guest 1-simpleuser 3-premiumuser 5-moderator 7-admin 9-superadmin)
 	}
 	AuthUser struct {
 		ID           uint64 `json:"id" gorm:"primaryKey"`

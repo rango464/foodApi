@@ -76,11 +76,16 @@ func (h *UserHandler) LoginUser(c echo.Context) error { // login user (email, pa
 // }
 
 func (h *UserHandler) GetAllUsers(c echo.Context) error {
-	offset, err := strconv.Atoi(c.Param("offset")) // string to int
+	offset, err := strconv.Atoi(c.Param("offset")) //получим смещение string to int
 	if err != nil {                                // ... handle error
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in get request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid offset in get request"})
 	}
-	count := 50
+
+	count, err := strconv.Atoi(c.QueryParam("count")) //получим смещение string to int
+	if err != nil {                                   // ... handle error
+		count = 50
+	}
+
 	users, err := h.service.GetAllUsers(offset, count)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not get all users"})
@@ -98,7 +103,7 @@ func (h *UserHandler) ReadUser(c echo.Context) error { //read one user by id
 
 	user, err := h.service.GetUserById(id)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not get user with id " + c.Param("id")})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 	return c.JSON(http.StatusOK, user)
 }
@@ -114,10 +119,20 @@ func (h *UserHandler) UpdateUserParams(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 
+	//прочитаем root из контекста
+	root, err := strconv.ParseInt(c.Get("ctxRoot").(string), 10, 8) // строку в uint8
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "can`t get correct root from ctx"})
+	}
+
+	fmt.Printf("geted from context root=%v", root)
+
 	newUserParams := st.ParamsUser{
 		UserID: id,
-		Name:   req.Name,
-		Root:   req.Root,
+		Name:   req.Name, // может менять пользователь
+	}
+	if root == 9 {
+		newUserParams.Root = req.Root // может менять только суперадмин
 	}
 
 	updated, err := h.service.UpdateUserParams(newUserParams)
@@ -135,7 +150,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	if err := h.service.DeleteUser(id); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not delete user with id " + c.Param("id")})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not delete user"})
 	}
 	return c.NoContent(http.StatusNoContent)
 }

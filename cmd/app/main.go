@@ -10,13 +10,12 @@ import (
 	"strings"
 
 	// "github.com/labstack/echo-jwt"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-
 	"github.com/RangoCoder/foodApi/internal/appmidleware"
 	"github.com/RangoCoder/foodApi/internal/db"
 	"github.com/RangoCoder/foodApi/internal/handlersUser"
 	"github.com/RangoCoder/foodApi/internal/userService"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func authControl(next echo.HandlerFunc) echo.HandlerFunc { // свой midleware
@@ -40,12 +39,17 @@ func authControl(next echo.HandlerFunc) echo.HandlerFunc { // свой midleware
 				if err != nil {
 					return errors.New("can`t get params from JWT") // при проверке токена произошла ошибка
 				}
-				idAccess := acessIdControl(c, claims.Sub)
-				rootAccess := acessRootControl(claims.Root)
-				if idAccess || rootAccess { // если доступ разрешен
+				access := acessControl(c, claims.Root, claims.Sub)
+				if access { // если доступ разрешен
+					//добавим в контекст для удобства
+					uid := strconv.FormatUint(claims.Sub, 10)   // из числа в строку
+					root := strconv.FormatUint(claims.Root, 10) // из числа в строку
+					c.Set("ctxUid", uid)
+					c.Set("ctxRoot", root)
+
 					c.Response().Header().Set(echo.HeaderAuthorization, newToken) // добавляем токен в ответный Header
 				} else {
-					return errors.New("user acess denied") // при проверке соответствия ид токена и адреса пути выявилось, что пользователь не допущен
+					return errors.New("user acсess denied") // при проверке соответствия ид токена и адреса пути выявилось, что пользователь не допущен
 				}
 			} else {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid access token"})
@@ -56,20 +60,24 @@ func authControl(next echo.HandlerFunc) echo.HandlerFunc { // свой midleware
 	}
 }
 
-func acessIdControl(c echo.Context, uid uint64) bool { // проверим чтоб пользователь получал только ту информацию к которой допущен
+func acessControl(c echo.Context, root, uid uint64) bool { // проверим чтоб пользователь получал только ту информацию к которой допущен
 	// проверим юид из параметра в запросе и сравним с нашиего пользователя
+	// ROOT(0-guest 1-simpleuser 3-premiumuser 5-moderator 7-admin 9-superadmin)
 	contentUid, err := strconv.ParseUint(fmt.Sprint(c.Param("uid")), 10, 64) // string to uint64
-	if err != nil {
-		return false
+	if err != nil {                                                          //
+		if root == 9 { // СУПЕРАДМИНУ ВСЕ МОЖНО
+			return true
+		}
 	}
+	if root == 9 || contentUid == uid { // если суперадмин или свой пользователь то тоже можно
+		return true
+	}
+
 	// fmt.Println("/n acessIdControl get uid", uid)
 	// fmt.Println("/n acessIdControl get root", root)
 	// fmt.Println("/n acessIdControl get context", c)
 
-	return uid == contentUid
-}
-func acessRootControl(root uint64) bool { // проверим чтоб пользователь получал только ту информацию к которой допущен
-	return root == 1 // если админ - то можно
+	return false
 }
 
 // allowOrigin takes the origin as an argument and returns true if the origin
