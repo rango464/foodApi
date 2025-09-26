@@ -92,7 +92,7 @@ func ExponentialConvert(expoNum any) (uint64, error) {
 	return uint64(finalRes), nil
 }
 
-// разбераем токенна запчасти чтобы проверить
+// разбераем токен на запчасти чтобы проверить
 func GetClaimsFromJWT(tokenString string) (st.TokenClaims, error) {
 	var err error
 	var getedTokenClaims st.TokenClaims

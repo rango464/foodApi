@@ -10,13 +10,13 @@ type UserRepository interface {
 	CreateUser(user st.User) (uint64, error)
 	LoginUser(user st.User) (st.User, error)
 	GetAllUsers(offset, count int) ([]st.UserShow, error)
-	GetUserById(id uint64) (st.User, error)
-	DeleteUser(id uint64) error
-	CreateUserParams(userId uint64) (st.ParamsUser, error)
-	GetUserParams(userId uint64) (st.ParamsUser, error)
+	GetUserById(uid uint64) (st.User, error)
+	DeleteUser(uid uint64) error
+	CreateUserParams(uid uint64) (st.ParamsUser, error)
+	GetUserParams(uid uint64) (st.ParamsUser, error)
 	UpdateUserParams(params st.ParamsUser) error
-	CreateUserAuth(userId uint64) (st.AuthUser, error)
-	GetUserAuth(userId uint64) (st.AuthUser, error)       //
+	CreateUserAuth(uid uint64) (st.AuthUser, error)
+	GetUserAuth(uid uint64) (st.AuthUser, error)          //
 	UpdateUserAuth(auth st.AuthUser) (st.AuthUser, error) //
 }
 
@@ -93,7 +93,6 @@ func (r *userRepository) LoginUser(u st.User) (st.User, error) {
 
 // показывает данные всех пользователей
 func (r *userRepository) GetAllUsers(offset, count int) ([]st.UserShow, error) {
-	// fmt.Printf("getAllUsers offset = %v, count = %v", offset, count)
 	var userShow []st.UserShow
 	query := r.db.Table("users").Select("users.id, users.email, pu.name, pu.root").Joins("left join params_users pu on pu.user_id = users.id").Limit(count).Offset(offset).Scan(&userShow)
 	err := query.Error
@@ -101,30 +100,29 @@ func (r *userRepository) GetAllUsers(offset, count int) ([]st.UserShow, error) {
 }
 
 // показывает данные пользователя с ид
-func (r *userRepository) GetUserById(id uint64) (st.User, error) {
+func (r *userRepository) GetUserById(uid uint64) (st.User, error) {
 	var user st.User
-	query := r.db.Preload("ParamsUser").Preload("AuthUser").Take(&user, id)
+	query := r.db.Preload("ParamsUser").Preload("AuthUser").Take(&user, uid)
 	err := query.Error
 	return user, err
 }
 
-func (r *userRepository) DeleteUser(id uint64) error {
+func (r *userRepository) DeleteUser(uid uint64) error {
 	var user st.User
-	return r.db.Delete(&user, id).Error
+	return r.db.Delete(&user, uid).Error
 }
 
 /*................................................*/
 
-func (r *userRepository) CreateUserParams(userId uint64) (st.ParamsUser, error) {
-	var params = st.ParamsUser{UserID: userId}
+func (r *userRepository) CreateUserParams(uid uint64) (st.ParamsUser, error) {
+	var params = st.ParamsUser{UserID: uid}
 	err := r.db.Create(&params).Error
 	return params, err
 }
 
-func (r *userRepository) GetUserParams(userId uint64) (st.ParamsUser, error) {
+func (r *userRepository) GetUserParams(uid uint64) (st.ParamsUser, error) {
 	var params = st.ParamsUser{}
-	err := r.db.Where(&st.ParamsUser{UserID: userId}).First(&params).Error
-	// err := r.db.Take(&params).Error
+	err := r.db.Where(&st.ParamsUser{UserID: uid}).First(&params).Error
 	return params, err
 }
 
@@ -134,21 +132,19 @@ func (r *userRepository) UpdateUserParams(params st.ParamsUser) error {
 
 /*....................................................*/
 
-func (r *userRepository) CreateUserAuth(userId uint64) (st.AuthUser, error) {
-	var auth = st.AuthUser{UserID: userId}
+func (r *userRepository) CreateUserAuth(uid uint64) (st.AuthUser, error) {
+	var auth = st.AuthUser{UserID: uid}
 	err := r.db.Create(&auth).Error
 	return auth, err
 }
 
-func (r *userRepository) GetUserAuth(userId uint64) (st.AuthUser, error) {
+func (r *userRepository) GetUserAuth(uid uint64) (st.AuthUser, error) {
 	var auth = st.AuthUser{}
-	err := r.db.Where(&st.AuthUser{UserID: userId}).First(&auth).Error
-	// err := r.db.Take(&params).Error
+	err := r.db.Where(&st.AuthUser{UserID: uid}).First(&auth).Error
 	return auth, err
 }
 
 func (r *userRepository) UpdateUserAuth(auth st.AuthUser) (st.AuthUser, error) {
-	// return r.db.Save(&auser).Error
 	err := r.db.Save(&auth).Error
 	return auth, err
 }

@@ -39,6 +39,31 @@ func (h *UserHandler) RegisterUser(c echo.Context) error { // register new user
 	return c.JSON(http.StatusCreated, respMessage)
 }
 
+func (h *UserHandler) RefreshUserAccess(c echo.Context) error { // restore user access by refresh token
+	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
+	if err != nil {                                       // ... handle error
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in get request"})
+	}
+
+	var req st.AuthTokens
+	if err := c.Bind(&req); err != nil { // если передаваемые данные не соответствуют модели
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	tokens := st.AuthTokens{
+		AccessToken:  req.AccessToken,
+		RefreshToken: req.RefreshToken,
+	}
+
+	auth, err := h.service.RestoreAccessByRefresh(uid, tokens) // acsessJwt, refreshJwt
+
+	if err != nil {
+		fmt.Println(err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not refresh access, wrong data"})
+	}
+
+	return c.JSON(http.StatusOK, auth)
+}
+
 func (h *UserHandler) LoginUser(c echo.Context) error { // login user (email, pass)
 	var req st.User
 	if err := c.Bind(&req); err != nil { // если передаваемые данные не соответствуют модели
@@ -96,12 +121,12 @@ func (h *UserHandler) GetAllUsers(c echo.Context) error {
 func (h *UserHandler) ReadUser(c echo.Context) error { //read one user by id
 	// fmt.Printf("handler read user with context %v", c)
 
-	id, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
-	if err != nil {                                      // ... handle error
+	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
+	if err != nil {                                       // ... handle error
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in get request"})
 	}
 
-	user, err := h.service.GetUserById(id)
+	user, err := h.service.GetUserById(uid)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
@@ -109,8 +134,8 @@ func (h *UserHandler) ReadUser(c echo.Context) error { //read one user by id
 }
 
 func (h *UserHandler) UpdateUserParams(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
-	if err != nil {                                      // ... handle error
+	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
+	if err != nil {                                       // ... handle error
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in update request"})
 	}
 
@@ -128,7 +153,7 @@ func (h *UserHandler) UpdateUserParams(c echo.Context) error {
 	fmt.Printf("geted from context root=%v", root)
 
 	newUserParams := st.ParamsUser{
-		UserID: id,
+		UserID: uid,
 		Name:   req.Name, // может менять пользователь
 	}
 	if root == 9 {
@@ -144,13 +169,26 @@ func (h *UserHandler) UpdateUserParams(c echo.Context) error {
 }
 
 func (h *UserHandler) DeleteUser(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
-	if err != nil {                                      // ... handle error
+	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
+	if err != nil {                                       // ... handle error
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in update request"})
 	}
 
-	if err := h.service.DeleteUser(id); err != nil {
+	if err := h.service.DeleteUser(uid); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not delete user"})
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *UserHandler) ExitUser(c echo.Context) error {
+	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
+	if err != nil {                                       // ... handle error
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in exit request"})
+	}
+
+	exit, err := h.service.ExitUser(uid)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not exit"})
+	}
+	return c.JSON(http.StatusOK, exit)
 }

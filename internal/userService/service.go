@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,10 +19,12 @@ import (
 type UserService interface {
 	RegisterUser(user st.User) (st.User, error)
 	LoginUser(user st.User) (st.AuthTokens, error)
+	RestoreAccessByRefresh(uid uint64, tokens st.AuthTokens) (st.AuthTokens, error)
 	GetAllUsers(offset, count int) ([]st.UserShow, error)
-	GetUserById(id uint64) (st.User, error)
+	GetUserById(uid uint64) (st.User, error)
 	UpdateUserParams(userParams st.ParamsUser) (st.ParamsUser, error)
-	DeleteUser(id uint64) error
+	DeleteUser(uid uint64) error
+	ExitUser(uid uint64) (bool, error)
 }
 
 type userService struct {
@@ -52,7 +55,7 @@ func (s *userService) ConvertToSha256(incomeStr string) string {
 }
 
 // создаем RefreshToken
-func (s *userService) MakeRefreshToken(claims st.TokenClaims, user st.User) (string, error) {
+func (s *userService) MakeRefreshToken(claims st.TokenClaims, uid uint64) (string, error) {
 	var authUser st.AuthUser
 	charset := env.GetEnvVar("SIMBOLS_CHAR")
 	sb := strings.Builder{}
@@ -62,17 +65,23 @@ func (s *userService) MakeRefreshToken(claims st.TokenClaims, user st.User) (str
 		sb.WriteByte(charset[rand.Intn(len(charset))])
 	}
 
-	authUser, err := s.repo.GetUserAuth(user.ID)
+	authUser, err := s.repo.GetUserAuth(uid)
 	if err != nil { // если нет пользователя с таким id
 		return "", err
 		// return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid email"})
 	}
 
 	//готовим запись нового refresfToken в бд
-	authUser.ID = user.ID
-	expireRtTime := time.Now().AddDate(0, 0, 15).Unix() // время жизни refresh токена в днях (15)
-	authUser.ExpareTime = expireRtTime
-	authUser.RefreshToken = sb.String()
+	authUser.ID = uid
+	RefreshLiveDaysVar := env.GetEnvVar("REFRESH_LIVE_DAYS") // время жизни refresh токена в днях (RefreshLiveDays)
+	RefreshLiveDays, err := strconv.Atoi(RefreshLiveDaysVar)
+	if err != nil { //
+		return "", err
+	}
+	expireRtTime := time.Now().AddDate(0, 0, RefreshLiveDays).Unix() // uinx выдачи refresh токена
+	authUser.ExpareTime = expireRtTime                               // renew expiration time
+	authUser.LastRefreshTime = time.Now().Unix()                     // unix token create
+	authUser.RefreshToken = sb.String()                              // renew refreshToken
 
 	saved, err := s.repo.UpdateUserAuth(authUser)
 	if err != nil {
@@ -84,14 +93,45 @@ func (s *userService) MakeRefreshToken(claims st.TokenClaims, user st.User) (str
 }
 
 /*
-создаем токены автороизации AccessToken RefreshToken
-RefreshToken сохраняем в бд с ид пользователя и временем его экспирации
+renew user tokens - AccessToken RefreshToken
+*/
+func (s *userService) RestoreAccessByRefresh(uid uint64, tokens st.AuthTokens) (st.AuthTokens, error) {
+	var authResp st.AuthTokens
+	var tokenClaims st.TokenClaims
+	// confirm uid & refresh -> get LastEntryRoot as root
+	authUser, err := s.repo.GetUserAuth(uid)
+	if err != nil { // если нет пользователя с таким id
+		return st.AuthTokens{}, err
+	}
+	// make new jwt with root param geted from last user login
+	nowTimeUnix := time.Now().Unix()
+	tokenClaims.Sub = uid
+	tokenClaims.Iat = uint64(nowTimeUnix)
+	tokenClaims.Root = uint64(authUser.LastEntryRoot)
+	accessToken, err := appmidleware.MakeAccessJWT(tokenClaims)
+	if err != nil {
+		return authResp, err
+	}
+	authResp.AccessToken = accessToken
+
+	refreshToken, err := s.MakeRefreshToken(tokenClaims, uid)
+	if err != nil {
+		return authResp, err
+	}
+	authResp.RefreshToken = refreshToken
+
+	return authResp, nil
+}
+
+/*
+make tokens - AccessToken RefreshToken
+RefreshToken save in table with uid, uRoot, expireTime
 */
 func (s *userService) GenerateAndSaveJWT(user st.User) (st.AuthTokens, error) {
 	var authResp st.AuthTokens
 	var tokenClaims st.TokenClaims
 	// fmt.Println("GenerateAndSaveJWT user", user)
-	// генерим jwt
+	// generate jwt
 	nowTimeUnix := time.Now().Unix()
 	tokenClaims.Sub = user.ID
 	tokenClaims.Iat = uint64(nowTimeUnix)
@@ -102,7 +142,7 @@ func (s *userService) GenerateAndSaveJWT(user st.User) (st.AuthTokens, error) {
 	}
 	authResp.AccessToken = accessToken
 
-	refreshToken, err := s.MakeRefreshToken(tokenClaims, user)
+	refreshToken, err := s.MakeRefreshToken(tokenClaims, user.ID)
 	if err != nil {
 		return authResp, err
 	}
@@ -111,10 +151,10 @@ func (s *userService) GenerateAndSaveJWT(user st.User) (st.AuthTokens, error) {
 	return authResp, nil
 }
 
-// записываем пару логин пароь в бд
+// make line in table users - save login, pass
 func (s *userService) RegisterUser(user st.User) (st.User, error) {
 	var err error
-	if !s.ValidateEmail(user.Email) { // если указанная почта не валидна
+	if !s.ValidateEmail(user.Email) { // if email not valid
 		return st.User{}, errors.New("invalid email")
 	}
 
@@ -166,8 +206,8 @@ func (s *userService) GetAllUsers(offset, count int) ([]st.UserShow, error) {
 }
 
 // выборка пользователя из бд по ид
-func (s *userService) GetUserById(id uint64) (st.User, error) {
-	user, err := s.repo.GetUserById(id)
+func (s *userService) GetUserById(uid uint64) (st.User, error) {
+	user, err := s.repo.GetUserById(uid)
 	if err != nil { // если нет пользователя с таким id
 		return st.User{}, err
 	}
@@ -195,6 +235,24 @@ func (s *userService) UpdateUserParams(newParams st.ParamsUser) (st.ParamsUser, 
 	return userParam, nil
 }
 
-func (s *userService) DeleteUser(id uint64) error {
-	return s.repo.DeleteUser(id)
+func (s *userService) DeleteUser(uid uint64) error {
+	return s.repo.DeleteUser(uid)
+}
+
+func (s *userService) ExitUser(uid uint64) (bool, error) {
+	var authUser st.AuthUser
+
+	authUser, err := s.repo.GetUserAuth(uid)
+	if err != nil { // если нет пользователя с таким id
+		return false, err
+	}
+	authUser.RefreshToken = ""
+
+	exit, err := s.repo.UpdateUserAuth(authUser)
+	if err != nil {
+		return false, err
+		// return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not create user"})
+	}
+
+	return exit.RefreshToken == "", nil
 }
