@@ -42,7 +42,7 @@ func (h *UserHandler) RegisterUser(c echo.Context) error { // register new user
 func (h *UserHandler) RefreshUserAccess(c echo.Context) error { // restore user access by refresh token
 	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
 	if err != nil {                                       // ... handle error
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id in get request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid uid in get request"})
 	}
 
 	var req st.AuthTokens
@@ -58,7 +58,7 @@ func (h *UserHandler) RefreshUserAccess(c echo.Context) error { // restore user 
 
 	if err != nil {
 		fmt.Println(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not refresh access, wrong data"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not refresh user access, wrong data"})
 	}
 
 	return c.JSON(http.StatusOK, auth)

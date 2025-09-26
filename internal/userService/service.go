@@ -82,6 +82,7 @@ func (s *userService) MakeRefreshToken(claims st.TokenClaims, uid uint64) (strin
 	authUser.ExpareTime = expireRtTime                               // renew expiration time
 	authUser.LastRefreshTime = time.Now().Unix()                     // unix token create
 	authUser.RefreshToken = sb.String()                              // renew refreshToken
+	authUser.LastEntryRoot = uint8(claims.Root)                      //set user root from last entry
 
 	saved, err := s.repo.UpdateUserAuth(authUser)
 	if err != nil {
@@ -99,7 +100,7 @@ func (s *userService) RestoreAccessByRefresh(uid uint64, tokens st.AuthTokens) (
 	var authResp st.AuthTokens
 	var tokenClaims st.TokenClaims
 	// confirm uid & refresh -> get LastEntryRoot as root
-	authUser, err := s.repo.GetUserAuth(uid)
+	authUser, err := s.repo.GetUserAuthByRefresh(uid, tokens.RefreshToken)
 	if err != nil { // если нет пользователя с таким id
 		return st.AuthTokens{}, err
 	}

@@ -44,7 +44,7 @@ func main() {
 	e.POST("/guest/register", userHands.RegisterUser) // register new user
 	e.POST("/guest/login", userHands.LoginUser)       // login user
 
-	e.POST("/guest/reresh", userHands.RefreshUserAccess) // restore user access by refresh token
+	e.POST("/guest/refresh/:uid", userHands.RefreshUserAccess) // restore user access by refresh token
 
 	//only authorized users
 	protected := e.Group("/user")

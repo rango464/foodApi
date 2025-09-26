@@ -16,7 +16,8 @@ type UserRepository interface {
 	GetUserParams(uid uint64) (st.ParamsUser, error)
 	UpdateUserParams(params st.ParamsUser) error
 	CreateUserAuth(uid uint64) (st.AuthUser, error)
-	GetUserAuth(uid uint64) (st.AuthUser, error)          //
+	GetUserAuth(uid uint64) (st.AuthUser, error) //
+	GetUserAuthByRefresh(uid uint64, rToken string) (st.AuthUser, error)
 	UpdateUserAuth(auth st.AuthUser) (st.AuthUser, error) //
 }
 
@@ -141,6 +142,12 @@ func (r *userRepository) CreateUserAuth(uid uint64) (st.AuthUser, error) {
 func (r *userRepository) GetUserAuth(uid uint64) (st.AuthUser, error) {
 	var auth = st.AuthUser{}
 	err := r.db.Where(&st.AuthUser{UserID: uid}).First(&auth).Error
+	return auth, err
+}
+
+func (r *userRepository) GetUserAuthByRefresh(uid uint64, rToken string) (st.AuthUser, error) {
+	var auth = st.AuthUser{}
+	err := r.db.Where(&st.AuthUser{UserID: uid, RefreshToken: rToken}).First(&auth).Error
 	return auth, err
 }
 
