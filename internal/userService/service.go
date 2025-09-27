@@ -13,11 +13,14 @@ import (
 
 	"github.com/RangoCoder/foodApi/internal/appmidleware"
 	"github.com/RangoCoder/foodApi/internal/env"
+	"github.com/RangoCoder/foodApi/internal/services"
 	st "github.com/RangoCoder/foodApi/internal/structs"
 )
 
 type UserService interface {
 	RegisterUser(user st.User) (st.User, error)
+	SaveAndSendEmailCodeConfirm(user st.User) (bool, error)
+	ConfirmUserEmail(confirm st.UserMailConfirm) (bool, error)
 	LoginUser(user st.User) (st.AuthTokens, error)
 	RestoreAccessByRefresh(uid uint64, tokens st.AuthTokens) (st.AuthTokens, error)
 	GetAllUsers(offset, count int) ([]st.UserShow, error)
@@ -42,10 +45,10 @@ func (s *userService) ValidateEmail(email string) bool { // проверка в�
 	return emailRegex.MatchString(email)
 }
 
-// хэшируем соленый пароль
+// хэшируем и подсаливаем
 func (s *userService) ConvertToSha256(incomeStr string) string {
-	soult := env.GetEnvVar("USER_PASS_SOULT") // строка соли генерируем наобум для защиты в случае утечки
-	soult2 := env.GetEnvVar("USER_PASS_SOULT2")
+	soult := env.GetEnvVar("USER_PASS_SOULT")   // строка соли генерируем наобум для защиты в случае утечки
+	soult2 := env.GetEnvVar("USER_PASS_SOULT2") // и вторую для уверенности))))
 	soultString := fmt.Sprintf("%v%v%v", soult2, incomeStr, soult)
 	bv := []byte(soultString)
 	hasher := sha256.New()
@@ -170,6 +173,65 @@ func (s *userService) RegisterUser(user st.User) (st.User, error) {
 		// return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not create user"})
 	}
 	return resp, err
+}
+
+/*
+make code string and sent to registereg user by confirm registration
+*/
+func (s *userService) SaveAndSendEmailCodeConfirm(user st.User) (bool, error) {
+	//после регистрации пользователя создаем проверочный код, пишем его в базу и посылам на пользоавтельский мейл
+	//используем имеющийся метод вычисления хэша соленого пароля, но зашифруем адрес почты
+	if user.VarifEmail { // почта уже подтверждена - ничего не делаем
+		return false, nil
+	}
+	fmt.Println("почта еще не подтверждена")
+	//создадим код проверки
+	VarifCode := s.ConvertToSha256(user.Email)
+
+	CodeLiveDays, err := strconv.Atoi(env.GetEnvVar("EMAILCONFIRM_CODE_LIVE_DAYS"))
+	if err != nil { //
+		return false, err
+	}
+	expireTime := time.Now().AddDate(0, 0, CodeLiveDays).Unix() // uinx экспирации кда подтверждения
+	// запишем код подтверждения в базу с привязкой к пользователю
+	// ситуации разные могут быть и чтобы не плодить стоки в бд проверим может уже код высылался и просто его обновим
+	confirmLine := st.UserMailConfirm{
+		UserID:           user.ID,
+		ExpareTime:       expireTime,
+		VarificationCode: VarifCode,
+	}
+	fmt.Println("начнем подтверждать и отправим")
+	fmt.Println(confirmLine)
+	update, err := s.repo.UpdateEmailCodeConfirm(user.ID, confirmLine)
+	if err != nil {
+		return false, err
+	}
+	fmt.Println("получили ответ -  в таблице с кодами:")
+	fmt.Println(update)
+	//отправим пользователю
+	mailBody := fmt.Sprintf("Для подтверждения почты, указанной при регистрации используйте код %v", update.VarificationCode)
+	fmt.Println("отправляем код верификации, но сейчас получим ошибку, так как не натроен smtp")
+	sended, err := services.SimpleSendEmail(user, mailBody)
+	if err != nil {
+		return false, err
+	}
+	return sended, nil
+}
+
+// когда пользователь получил код подтверждения Email и ввел его в форму подтверждения в личном кабинете
+// проверяем корректность. если все ввпорядке - меняем user.VarifEmail на true  и удаляем запись в UserMailConfirm по uid
+func (s *userService) ConfirmUserEmail(confirm st.UserMailConfirm) (bool, error) {
+	getresult, err := s.repo.GetEmailCodeConfirm(confirm)
+	if err != nil {
+		return false, err
+	}
+	if err := s.repo.SetVarifEmail(getresult.UserID, true); err != nil {
+		return false, err
+	}
+	if err := s.repo.DeleteEmailCodeConfirm(getresult.UserID); err != nil {
+		return false, err
+	}
+	return true, err
 }
 
 // аутентификация пользователя по логину

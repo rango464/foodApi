@@ -12,6 +12,7 @@ type UserRepository interface {
 	GetAllUsers(offset, count int) ([]st.UserShow, error)
 	GetUserById(uid uint64) (st.User, error)
 	DeleteUser(uid uint64) error
+	SetVarifEmail(uid uint64, varif bool) error
 	CreateUserParams(uid uint64) (st.ParamsUser, error)
 	GetUserParams(uid uint64) (st.ParamsUser, error)
 	UpdateUserParams(params st.ParamsUser) error
@@ -19,6 +20,9 @@ type UserRepository interface {
 	GetUserAuth(uid uint64) (st.AuthUser, error) //
 	GetUserAuthByRefresh(uid uint64, rToken string) (st.AuthUser, error)
 	UpdateUserAuth(auth st.AuthUser) (st.AuthUser, error) //
+	UpdateEmailCodeConfirm(uid uint64, confirmLine st.UserMailConfirm) (st.UserMailConfirm, error)
+	GetEmailCodeConfirm(confirmLine st.UserMailConfirm) (st.UserMailConfirm, error)
+	DeleteEmailCodeConfirm(uid uint64) error
 }
 
 type userRepository struct {
@@ -113,6 +117,14 @@ func (r *userRepository) DeleteUser(uid uint64) error {
 	return r.db.Delete(&user, uid).Error
 }
 
+func (r *userRepository) SetVarifEmail(uid uint64, varif bool) error {
+	user := st.User{
+		ID:         uid,
+		VarifEmail: varif,
+	}
+	return r.db.Save(&user).Error
+}
+
 /*................................................*/
 
 func (r *userRepository) CreateUserParams(uid uint64) (st.ParamsUser, error) {
@@ -154,4 +166,22 @@ func (r *userRepository) GetUserAuthByRefresh(uid uint64, rToken string) (st.Aut
 func (r *userRepository) UpdateUserAuth(auth st.AuthUser) (st.AuthUser, error) {
 	err := r.db.Save(&auth).Error
 	return auth, err
+}
+
+/*....................................................*/
+// обновим код подтверждения, если его еще нет то создадим
+func (r *userRepository) UpdateEmailCodeConfirm(uid uint64, confirmLine st.UserMailConfirm) (st.UserMailConfirm, error) {
+	err := r.db.Save(&confirmLine).Error
+	return confirmLine, err
+}
+
+func (r *userRepository) GetEmailCodeConfirm(confirmLine st.UserMailConfirm) (st.UserMailConfirm, error) {
+	var confirm = st.UserMailConfirm{}
+	err := r.db.Where(&st.UserMailConfirm{UserID: confirmLine.UserID, VarificationCode: confirmLine.VarificationCode}).First(&confirm).Error
+	return confirm, err
+}
+
+func (r *userRepository) DeleteEmailCodeConfirm(uid uint64) error {
+	var confirmLine st.UserMailConfirm
+	return r.db.Delete(&confirmLine, uid).Error
 }

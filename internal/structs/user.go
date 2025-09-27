@@ -34,7 +34,7 @@ type (
 	}
 	UserMailConfirm struct {
 		ID               uint64 `json:"id" gorm:"primaryKey"`
-		UserID           uint64 `json:"uid" gorm:"unique, foreignKey"` // userID
+		UserID           uint64 `json:"uid" gorm:"unique"`             // userID
 		ExpareTime       int64  `json:"updated" gorm:"autoUpdateTime"` // expare time for varification code
 		VarificationCode string `json:"varifCode"`                     // code like string length 25 simbols
 	}

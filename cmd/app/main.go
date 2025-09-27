@@ -45,11 +45,11 @@ func main() {
 	e.POST("/guest/login", userHands.LoginUser)       // login user
 
 	e.POST("/guest/refresh/:uid", userHands.RefreshUserAccess) // restore user access by refresh token
-
 	//only authorized users
 	protected := e.Group("/user")
 	protected.Use(authControl) //custom midleware - use Access token to control correct aceess user by root
 
+	protected.POST("/mailconfirm/:uid", userHands.EmailConfirm) // confirm user Email
 	protected.GET("/all/:offset", userHands.GetAllUsers)
 	protected.GET("/:uid", userHands.ReadUser)
 	protected.PUT("/:uid", userHands.UpdateUserParams)
