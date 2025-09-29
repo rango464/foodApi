@@ -1,6 +1,7 @@
 package handlersUser
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,28 +43,33 @@ func (h *UserHandler) RegisterUser(c echo.Context) error { // register new user
 	}
 	if mail {
 		//mail sended
-		respMessage = fmt.Sprintln("confirm you email (follow link from uor message)")
+		respMessage = fmt.Sprintln("message sended... confirm you email (follow link from income message)")
 	}
 
 	return c.JSON(http.StatusCreated, respMessage)
 }
 
-func (h *UserHandler) EmailConfirm(c echo.Context) error {
+func (h *UserHandler) EmailConfirm(c echo.Context) error { // подтверждаем почту по ссылке из письма
 	uid, err := strconv.ParseUint(c.Param("uid"), 10, 64) // string to uint
 	if err != nil {                                       // ... handle error
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid uid in get request"})
 	}
-	var req st.UserMailConfirm
-	if err := c.Bind(&req); err != nil { // если передаваемые данные не соответствуют модели
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
-	}
+
+	VarificationCode := c.QueryParam("code") // забираем из строки запроса проверочный код
+
 	confirm := st.UserMailConfirm{
 		UserID:           uid,
-		VarificationCode: req.VarificationCode,
+		VarificationCode: VarificationCode,
 	}
+
 	confirmation, err := h.service.ConfirmUserEmail(confirm)
 	if err != nil {
-		fmt.Println(err)
+		if err == errors.New("varificated") {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"status": "email already varify"})
+		}
+		if err == errors.New("expire") {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "need new varification code (expire)"})
+		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not confirm user Email"})
 	}
 

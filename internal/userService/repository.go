@@ -118,10 +118,12 @@ func (r *userRepository) DeleteUser(uid uint64) error {
 }
 
 func (r *userRepository) SetVarifEmail(uid uint64, varif bool) error {
-	user := st.User{
-		ID:         uid,
-		VarifEmail: varif,
+	user, err := r.GetUserById(uid)
+	if err != nil {
+		return err
 	}
+	// меняем парамет и сохраняем
+	user.VarifEmail = true
 	return r.db.Save(&user).Error
 }
 
@@ -178,6 +180,11 @@ func (r *userRepository) UpdateEmailCodeConfirm(uid uint64, confirmLine st.UserM
 func (r *userRepository) GetEmailCodeConfirm(confirmLine st.UserMailConfirm) (st.UserMailConfirm, error) {
 	var confirm = st.UserMailConfirm{}
 	err := r.db.Where(&st.UserMailConfirm{UserID: confirmLine.UserID, VarificationCode: confirmLine.VarificationCode}).First(&confirm).Error
+	// if err != nil { // пытался прредотвратить вывод ошибки об отсутствии записи (record not found) - пока не получилось
+	// 	if errors.Is(err, gorm.ErrRecordNotFound) {
+	// 		return st.UserMailConfirm{}, nil
+	// 	}
+	// }
 	return confirm, err
 }
 

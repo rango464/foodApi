@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	// "github.com/labstack/echo-jwt"
 
 	"github.com/RangoCoder/foodApi/internal/db"
+	"github.com/RangoCoder/foodApi/internal/env"
 	"github.com/RangoCoder/foodApi/internal/handlersUser"
 	"github.com/RangoCoder/foodApi/internal/userService"
 	"github.com/labstack/echo/v4"
@@ -44,12 +46,14 @@ func main() {
 	e.POST("/guest/register", userHands.RegisterUser) // register new user
 	e.POST("/guest/login", userHands.LoginUser)       // login user
 
+	addr := fmt.Sprintf("/%v/:uid", env.GetEnvVar("EMAILCONFIRM_URL"))
+	e.GET(addr, userHands.EmailConfirm) // confirm user Email
+
 	e.POST("/guest/refresh/:uid", userHands.RefreshUserAccess) // restore user access by refresh token
 	//only authorized users
 	protected := e.Group("/user")
 	protected.Use(authControl) //custom midleware - use Access token to control correct aceess user by root
 
-	protected.POST("/mailconfirm/:uid", userHands.EmailConfirm) // confirm user Email
 	protected.GET("/all/:offset", userHands.GetAllUsers)
 	protected.GET("/:uid", userHands.ReadUser)
 	protected.PUT("/:uid", userHands.UpdateUserParams)

@@ -184,8 +184,7 @@ func (s *userService) SaveAndSendEmailCodeConfirm(user st.User) (bool, error) {
 	if user.VarifEmail { // почта уже подтверждена - ничего не делаем
 		return false, nil
 	}
-	fmt.Println("почта еще не подтверждена")
-	//создадим код проверки
+	//почта еще не подтверждена - создадим код проверки
 	VarifCode := s.ConvertToSha256(user.Email)
 
 	CodeLiveDays, err := strconv.Atoi(env.GetEnvVar("EMAILCONFIRM_CODE_LIVE_DAYS"))
@@ -195,39 +194,55 @@ func (s *userService) SaveAndSendEmailCodeConfirm(user st.User) (bool, error) {
 	expireTime := time.Now().AddDate(0, 0, CodeLiveDays).Unix() // uinx экспирации кда подтверждения
 	// запишем код подтверждения в базу с привязкой к пользователю
 	// ситуации разные могут быть и чтобы не плодить стоки в бд проверим может уже код высылался и просто его обновим
-	confirmLine := st.UserMailConfirm{
+	confirmLine := st.UserMailConfirm{ //начнем подтверждать и отправим
 		UserID:           user.ID,
 		ExpareTime:       expireTime,
 		VarificationCode: VarifCode,
 	}
-	fmt.Println("начнем подтверждать и отправим")
-	fmt.Println(confirmLine)
-	update, err := s.repo.UpdateEmailCodeConfirm(user.ID, confirmLine)
+	update, err := s.repo.UpdateEmailCodeConfirm(user.ID, confirmLine) //получили ответ -  в таблице с кодами
 	if err != nil {
 		return false, err
 	}
-	fmt.Println("получили ответ -  в таблице с кодами:")
-	fmt.Println(update)
 	//отправим пользователю
-	mailBody := fmt.Sprintf("Для подтверждения почты, указанной при регистрации используйте код %v", update.VarificationCode)
-	fmt.Println("отправляем код верификации, но сейчас получим ошибку, так как не натроен smtp")
-	sended, err := services.SimpleSendEmail(user, mailBody)
+	apihost := env.GetEnvVar("API_HOST_ADDR")
+	emailConfirmUrl := env.GetEnvVar("EMAILCONFIRM_URL")
+	varifEmailLink := fmt.Sprintf("%v%v/%v?code=%v", apihost, emailConfirmUrl, user.ID, update.VarificationCode)
+	subject := "Подтверждение почты"
+	mailBody := fmt.Sprintf("Для подтверждения электронной почты, перейдите по ссылке %v", varifEmailLink)
+	sended, err := services.SimpleSendEmail(user, subject, mailBody) //отправляем код верификации
 	if err != nil {
 		return false, err
 	}
+
 	return sended, nil
 }
 
 // когда пользователь получил код подтверждения Email и ввел его в форму подтверждения в личном кабинете
 // проверяем корректность. если все ввпорядке - меняем user.VarifEmail на true  и удаляем запись в UserMailConfirm по uid
 func (s *userService) ConfirmUserEmail(confirm st.UserMailConfirm) (bool, error) {
-	getresult, err := s.repo.GetEmailCodeConfirm(confirm)
+	// проверим отетку у пользователя - что почта еще не подтверждена
+	user, err := s.repo.GetUserById(confirm.UserID)
 	if err != nil {
 		return false, err
 	}
+	if user.VarifEmail { // почта уже подтверждена
+		return false, errors.New("varificated")
+	}
+
+	getresult, err := s.repo.GetEmailCodeConfirm(confirm) //получили запись из бд - значит код верный
+	if err != nil {
+		return false, err
+	}
+	// проверим не поздно ли пришел код
+	if getresult.ExpareTime < time.Now().Unix() {
+		return false, errors.New("expire")
+	}
+
+	// отметим в таблице пользователей, что email подтвержден
 	if err := s.repo.SetVarifEmail(getresult.UserID, true); err != nil {
 		return false, err
 	}
+	// удалим технические данные для подтверждения почты , т.к. они нам больше не нужны
 	if err := s.repo.DeleteEmailCodeConfirm(getresult.UserID); err != nil {
 		return false, err
 	}
