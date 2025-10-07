@@ -3,7 +3,6 @@ package handlersWs
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"maps"
 	"net/http"
@@ -75,7 +74,7 @@ func (h *WsHandler) WsGOTickers(c echo.Context) error {
 				}
 				break
 			}
-			goWsManager(wsid, string(message)) //отправим входящую команду менеджеру - он там сам ответит
+			h.GoWsManager(wsid, string(message)) //отправим входящую команду менеджеру - он там сам ответит
 		}
 		wg.Done()
 	}()
@@ -88,7 +87,7 @@ goWsManager(connID, msg string) - менеджер
 получая сообщение менеджер определяет евляется ли оно командой, если да - продолжает работать
 выбирая команду - передает задачу исполнителю
 */
-func goWsManager(connID, msg string) {
+func (h *WsHandler) GoWsManager(connID, msg string) {
 	var cr structs.ClientComands
 	err := json.Unmarshal([]byte(msg), &cr) //
 	if err != nil {
@@ -98,13 +97,13 @@ func goWsManager(connID, msg string) {
 
 	switch cr.Command {
 	case "stream": // { "command": "stream", "symbols":["BTCUSDT", "ETHUSDT","BTCUSDT", "BNBUSDT", "BNBBTC", "LTCBTC"], "fps":0.5 }- стримить текущее значение тикеров
-		if err := goWsLiveStreamer(connID, cr); err != nil { // запускаем стример для конкретного канала клиента
-			fmt.Printf("goWsLiveStreamer ответил ошибкой %s \n", err)
+		if err := h.GoWsLiveStreamer(connID, cr); err != nil { // запускаем стример для конкретного канала клиента
+			fmt.Printf("GoWsLiveStreamer ответил ошибкой %s \n", err)
 		}
 
 	case "unstream": // останавливаем стрим
 	case "broadcast": // общий канал
-		gobroadcastToAll(cr.Msg)
+		h.GobroadcastToAll(cr.Msg)
 	case "show":
 	case "test": // тест
 	}
@@ -118,7 +117,7 @@ func goWsManager(connID, msg string) {
 собрав коллективный ответ из буферищированного канала - убедимся что получаель информации все еще на связи и отправим ему информацию
 если получатель отключился - останавливаем работу цикла, а планировщик сам подчистит отработавшие горутины
 */
-func goWsLiveStreamer(cid string, cr structs.ClientComands) error {
+func (h *WsHandler) GoWsLiveStreamer(cid string, cr structs.ClientComands) error {
 	symbols := cr.Symbols // перечень тикеров
 	go func() {
 
@@ -130,7 +129,7 @@ func goWsLiveStreamer(cid string, cr structs.ClientComands) error {
 
 			for _, ticker := range symbols { // стартуем горутины
 				go func() {
-					cnl <- map[string]float64{ticker: getTickerPrice(ticker)}
+					cnl <- map[string]float64{ticker: h.service.GetTickerPrice(ticker)}
 					wg.Done()
 				}()
 			}
@@ -151,7 +150,7 @@ func goWsLiveStreamer(cid string, cr structs.ClientComands) error {
 				log.Println("состояние conectionPool", conectionPool)
 				break
 			}
-			gohandleMessage(cid, fmt.Sprintf("%v", result))
+			h.GohandleMessage(cid, fmt.Sprintf("%v", result))
 			time.Sleep(time.Duration(cr.Fps * float64(time.Second))) // обновление валютных пар происходит с задержкой, указанной в fps
 		}
 	}()
@@ -159,47 +158,21 @@ func goWsLiveStreamer(cid string, cr structs.ClientComands) error {
 }
 
 /*
-getTickerPrice(ticker string) float64  - получает от api.binance.com текущее значение тикера и возвращает его
-*/
-func getTickerPrice(ticker string) float64 {
-	url := fmt.Sprintf("https://api.binance.com/api/v3/ticker/price?symbol=%s", ticker)
-	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != 200 { // если неудалось - завершаем горутину
-		log.Fatal("остановили getTickerPrice из за ошибки", err)
-		return 0
-	}
-	body, err := io.ReadAll(resp.Body) //прочитаем ответ
-	if err != nil {
-		log.Fatalf("ошибка чтения ответа ws сервера: %v", err)
-	}
-	SP := structs.SymbolPrice{}
-	err = json.Unmarshal(body, &SP) //ответ сервера ждем в формате такой структуры
-	if err != nil {
-		log.Fatalf("ошибка десериализации JSON: %v", err)
-	}
-	price, err := strconv.ParseFloat(SP.Price, 64)
-	if err != nil {
-		log.Fatalf("ошибка в ходе преобразования price в float64: %v", err)
-	}
-	return price
-}
-
-/*
 gohandleMessage(connID, msg string)  - отпарвляет сообщение либо всем либо конкретному клиенту, если указан uuid его соединения
 */
-func gohandleMessage(connID, msg string) {
+func (h *WsHandler) GohandleMessage(connID, msg string) {
 	fmt.Printf("сообщение %s направляется клиенту %s\n", msg, connID)
 	if connID != "" {
-		gobroadcastToClient(connID, msg)
+		h.GobroadcastToClient(connID, msg)
 	} else {
-		gobroadcastToAll(msg)
+		h.GobroadcastToAll(msg)
 	}
 }
 
 /*
 gobroadcatsToClient(cid, message string)  - отпарвляет сообщение  конкретному клиенту
 */
-func gobroadcastToClient(cid, message string) {
+func (h *WsHandler) GobroadcastToClient(cid, message string) {
 	for wsid, conn := range conectionPool {
 		if cid == wsid { //маршрутируем ответ указанному пользователю
 			conn.Conn.WriteMessage(websocket.TextMessage, []byte(message))
@@ -211,7 +184,7 @@ func gobroadcastToClient(cid, message string) {
 /*
 gobroadcatsToAll(message string)  - отпарвляет сообщение  всем клиентам
 */
-func gobroadcastToAll(message string) {
+func (h *WsHandler) GobroadcastToAll(message string) {
 	for wsid, conn := range conectionPool {
 		fmt.Printf("broadcatsToAll сообщение для %s:%s\n", wsid, []byte(message))
 		conn.Conn.WriteMessage(websocket.TextMessage, []byte(message))
