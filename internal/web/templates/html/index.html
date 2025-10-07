@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Форма обмена сообщениями</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-700: #2563eb;
+      --border: #243041;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, #0b1220, #0d1526);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 840px;
+      background: rgba(17, 24, 39, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: saturate(140%) blur(10px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+    }
+
+    .title { font-size: 16px; font-weight: 600; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+
+    .messages {
+      height: 52vh;
+      min-height: 320px;
+      overflow: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scroll-behavior: smooth;
+    }
+
+    .msg {
+      max-width: 72%;
+      width: fit-content;
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.35;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .msg.me {
+      align-self: flex-end;
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59,130,246,0.25);
+    }
+    .msg.them {
+      align-self: flex-start;
+      background: rgba(31, 41, 55, 0.8);
+      border-color: rgba(148,163,184,0.15);
+    }
+    .meta {
+      display: flex;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 6px;
+    }
+
+    .composer {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      background: rgba(17, 24, 39, 0.6);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 10px;
+    }
+
+    input[type="text"], textarea {
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      width: 100%;
+    }
+    textarea { resize: vertical; min-height: 44px; max-height: 40vh; }
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.05s ease, background 0.2s ease, box-shadow 0.2s ease;
+      white-space: nowrap;
+      align-self: start;
+    }
+    .btn:hover { background: var(--accent-700); }
+    .btn:active { transform: translateY(1px); }
+
+    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+      .msg { max-width: 86%; }
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('chat-form');
+      const nameInput = document.getElementById('name');
+      const messageInput = document.getElementById('message');
+      const list = document.getElementById('messages');
+
+      function formatTime(date) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function appendMessage({ author, text, mine }) {
+        const wrap = document.createElement('div');
+        wrap.className = `msg ${mine ? 'me' : 'them'}`;
+
+        const content = document.createElement('div');
+        content.textContent = text;
+        wrap.appendChild(content);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const nameEl = document.createElement('span');
+        nameEl.textContent = author || 'Гость';
+        const timeEl = document.createElement('span');
+        timeEl.textContent = formatTime(new Date());
+        meta.appendChild(nameEl);
+        meta.appendChild(document.createTextNode('·'));
+        meta.appendChild(timeEl);
+        wrap.appendChild(meta);
+
+        list.appendChild(wrap);
+        list.scrollTop = list.scrollHeight;
+      }
+
+      function sendMessage() {
+        const author = nameInput.value.trim() || 'Я';
+        const text = messageInput.value.trim();
+        if (!text) return;
+        appendMessage({ author, text, mine: true });
+        messageInput.value = '';
+        messageInput.focus();
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendMessage();
+      });
+
+      // Отправка по Ctrl/Cmd+Enter, перенос строки по Enter
+      messageInput.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      // Демосообщение
+      appendMessage({ author: 'Система', text: 'Добро пожаловать! Напишите сообщение ниже.', mine: false });
+    });
+  </script>
+  <meta name="color-scheme" content="dark light" />
+</head>
+<body>
+  <div class="container" role="application" aria-label="Мини-чат">
+    <div class="header">
+      <div class="avatar" aria-hidden="true">Ч</div>
+      <div>
+        <div class="title">Чат-форма</div>
+        <div class="subtitle">Локальная демонстрация без сервера</div>
+      </div>
+    </div>
+
+    <div id="messages" class="messages" aria-live="polite" aria-relevant="additions"></div>
+
+    <form id="chat-form" class="composer" autocomplete="on">
+      <div class="row">
+        <input id="name" type="text" name="name" placeholder="Ваше имя" aria-label="Ваше имя" />
+        <textarea id="message" name="message" placeholder="Введите сообщение..." aria-label="Сообщение"></textarea>
+      </div>
+      <button class="btn" type="submit" aria-label="Отправить сообщение">Отправить</button>
+      <div class="hint">Подсказка: Ctrl/⌘ + Enter — отправить, Enter — новая строка</div>
+    </form>
+  </div>
+</body>
+</html>

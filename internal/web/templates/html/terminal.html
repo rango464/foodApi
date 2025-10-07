@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Биржевой Терминал</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background-color: #2d2d2d;
+            padding: 10px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button {
+            background-color: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #5a5a5a;
+        }
+
+        button:disabled {
+            background-color: #333;
+            cursor: not-allowed;
+        }
+
+        .connect-btn {
+            background-color: #28a745;
+        }
+
+        .connect-btn:hover {
+            background-color: #218838;
+        }
+
+        .disconnect-btn {
+            background-color: #dc3545;
+        }
+
+        .disconnect-btn:hover {
+            background-color: #c82333;
+        }
+
+        select, input {
+            background-color: #3a3a3a;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #dc3545;
+        }
+
+        .status-dot.connected {
+            background-color: #28a745;
+        }
+
+        .fps-counter {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+
+        .chart-container {
+            flex: 1;
+            background-color: #1e1e1e;
+            position: relative;
+            border-right: 1px solid #444;
+        }
+
+        .orderbook-container {
+            width: 350px;
+            background-color: #252525;
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+            max-width: 600px;
+            resize: horizontal;
+            overflow: auto;
+        }
+
+        .resize-handle {
+            width: 5px;
+            background-color: #444;
+            cursor: col-resize;
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            z-index: 10;
+        }
+
+        .resize-handle:hover {
+            background-color: #666;
+        }
+
+        #chart {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .orderbook {
+            padding: 10px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .orderbook-header {
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #ccc;
+        }
+
+        .orderbook-table {
+            width: 100%;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .orderbook-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            border-radius: 2px;
+        }
+
+        .ask-row {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #ff6b7a;
+        }
+
+        .bid-row {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: #51cf66;
+        }
+
+        .spread-row {
+            background-color: rgba(255, 193, 7, 0.1);
+            color: #ffd43b;
+            text-align: center;
+            margin: 5px 0;
+            font-weight: bold;
+        }
+
+        .crosshair-line {
+            position: absolute;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .crosshair-vertical {
+            width: 1px;
+            background-color: rgba(255, 255, 255, 0.5);
+            height: 100%;
+        }
+
+        .crosshair-horizontal {
+            height: 1px;
+            background-color: rgba(255, 255, 255, 0.5);
+            width: 100%;
+        }
+
+        .price-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        .axis-label {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        .y-axis-label {
+            right: 5px;
+            transform: translateY(-50%);
+        }
+
+        .x-axis-label {
+            bottom: 5px;
+            transform: translateX(-50%);
+        }
+
+        .message-input {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="control-group">
+            <input type="url" id="wsUrl" placeholder="ws://localhost:8080" value="wss://stream.binance.com:9443/ws/btcusdt@ticker">
+            <button id="connectBtn" class="connect-btn">Подключить</button>
+            <button id="disconnectBtn" class="disconnect-btn" disabled>Отключить</button>
+        </div>
+        
+        <div class="control-group">
+            <input type="text" id="messageInput" class="message-input" placeholder="Сообщение для отправки">
+            <button id="sendBtn" disabled>Отправить</button>
+        </div>
+
+        <div class="control-group">
+            <select id="pairSelect">
+                <option value="BTCUSDT">BTC/USDT</option>
+                <option value="ETHUSDT">ETH/USDT</option>
+                <option value="ADAUSDT">ADA/USDT</option>
+                <option value="DOTUSDT">DOT/USDT</option>
+                <option value="LINKUSDT">LINK/USDT</option>
+            </select>
+        </div>
+
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Отключено</span>
+            <span class="fps-counter" id="fpsCounter">0 fps</span>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="chart-container">
+            <canvas id="chart"></canvas>
+            <div class="crosshair-line crosshair-vertical" id="crosshairV" style="display: none;"></div>
+            <div class="crosshair-line crosshair-horizontal" id="crosshairH" style="display: none;"></div>
+            <div class="price-tooltip" id="priceTooltip" style="display: none;"></div>
+            <div class="axis-label y-axis-label" id="yAxisLabel" style="display: none;"></div>
+            <div class="axis-label x-axis-label" id="xAxisLabel" style="display: none;"></div>
+        </div>
+        
+        <div class="orderbook-container">
+            <div class="resize-handle" id="resizeHandle"></div>
+            <div class="orderbook">
+                <div class="orderbook-header" id="orderbookHeader">Стакан - BTC/USDT</div>
+                <div class="orderbook-table" id="orderbookTable">
+                    <!-- Orderbook data will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TradingTerminal {
+            constructor() {
+                this.ws = null;
+                this.isConnected = false;
+                this.currentPair = 'BTCUSDT';
+                this.messageCount = 0;
+                this.lastSecond = Date.now();
+                this.fps = 0;
+                
+                // Chart data
+                this.candleData = [];
+                this.orderbook = { bids: [], asks: [] };
+                
+                // Chart dimensions and scaling
+                this.canvas = document.getElementById('chart');
+                this.ctx = this.canvas.getContext('2d');
+                this.chartPadding = { top: 20, right: 60, bottom: 40, left: 10 };
+                
+                // Mouse tracking
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.isMouseOverChart = false;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.setupCanvas();
+                this.generateMockData();
+                this.startRenderLoop();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    wsUrl: document.getElementById('wsUrl'),
+                    connectBtn: document.getElementById('connectBtn'),
+                    disconnectBtn: document.getElementById('disconnectBtn'),
+                    sendBtn: document.getElementById('sendBtn'),
+                    messageInput: document.getElementById('messageInput'),
+                    pairSelect: document.getElementById('pairSelect'),
+                    statusDot: document.getElementById('statusDot'),
+                    statusText: document.getElementById('statusText'),
+                    fpsCounter: document.getElementById('fpsCounter'),
+                    orderbookHeader: document.getElementById('orderbookHeader'),
+                    orderbookTable: document.getElementById('orderbookTable'),
+                    crosshairV: document.getElementById('crosshairV'),
+                    crosshairH: document.getElementById('crosshairH'),
+                    priceTooltip: document.getElementById('priceTooltip'),
+                    yAxisLabel: document.getElementById('yAxisLabel'),
+                    xAxisLabel: document.getElementById('xAxisLabel')
+                };
+            }
+
+            setupEventListeners() {
+                this.elements.connectBtn.addEventListener('click', () => this.connect());
+                this.elements.disconnectBtn.addEventListener('click', () => this.disconnect());
+                this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
+                this.elements.pairSelect.addEventListener('change', (e) => this.changePair(e.target.value));
+                
+                // Canvas mouse events
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseenter', () => this.isMouseOverChart = true);
+                this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+                
+                // Resize handle
+                this.setupResizeHandle();
+                
+                // Window resize
+                window.addEventListener('resize', () => this.setupCanvas());
+            }
+
+            setupResizeHandle() {
+                const resizeHandle = document.getElementById('resizeHandle');
+                const orderbookContainer = document.querySelector('.orderbook-container');
+                let isResizing = false;
+
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    document.addEventListener('mousemove', handleResize);
+                    document.addEventListener('mouseup', stopResize);
+                    e.preventDefault();
+                });
+
+                const handleResize = (e) => {
+                    if (!isResizing) return;
+                    const containerRect = document.querySelector('.main-container').getBoundingClientRect();
+                    const newWidth = containerRect.right - e.clientX;
+                    orderbookContainer.style.width = Math.max(200, Math.min(600, newWidth)) + 'px';
+                    this.setupCanvas();
+                };
+
+                const stopResize = () => {
+                    isResizing = false;
+                    document.removeEventListener('mousemove', handleResize);
+                    document.removeEventListener('mouseup', stopResize);
+                };
+            }
+
+            setupCanvas() {
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+                
+                // Update chart dimensions
+                this.chartWidth = this.canvas.width - this.chartPadding.left - this.chartPadding.right;
+                this.chartHeight = this.canvas.height - this.chartPadding.top - this.chartPadding.bottom;
+            }
+
+            connect() {
+                const url = this.elements.wsUrl.value;
+                if (!url) return;
+
+                try {
+                    this.ws = new WebSocket(url);
+                    
+                    this.ws.onopen = () => {
+                        this.isConnected = true;
+                        this.updateConnectionStatus();
+                        console.log('WebSocket подключен');
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        this.handleMessage(event.data);
+                    };
+
+                    this.ws.onclose = () => {
+                        this.isConnected = false;
+                        this.updateConnectionStatus();
+                        console.log('WebSocket отключен');
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket ошибка:', error);
+                        this.isConnected = false;
+                        this.updateConnectionStatus();
+                    };
+
+                } catch (error) {
+                    console.error('Ошибка подключения:', error);
+                }
+            }
+
+            disconnect() {
+                if (this.ws) {
+                    this.ws.close();
+                }
+            }
+
+            sendMessage() {
+                const message = this.elements.messageInput.value;
+                if (this.ws && this.isConnected && message) {
+                    this.ws.send(message);
+                    this.elements.messageInput.value = '';
+                }
+            }
+
+            handleMessage(data) {
+                this.messageCount++;
+                this.updateFPS();
+                
+                try {
+                    const parsedData = JSON.parse(data);
+                    // Обработка данных в зависимости от типа сообщения
+                    if (parsedData.c) { // Binance ticker data
+                        this.updateCandleData(parsedData);
+                    }
+                } catch (error) {
+                    console.log('Получено сообщение:', data);
+                }
+                
+                // Генерируем случайные данные для демонстрации
+                this.generateRandomUpdate();
+            }
+
+            updateCandleData(data) {
+                // Обновляем данные свечей из реальных данных
+                const price = parseFloat(data.c);
+                const volume = parseFloat(data.v);
+                
+                if (this.candleData.length > 0) {
+                    const lastCandle = this.candleData[this.candleData.length - 1];
+                    lastCandle.close = price;
+                    lastCandle.high = Math.max(lastCandle.high, price);
+                    lastCandle.low = Math.min(lastCandle.low, price);
+                    lastCandle.volume = volume;
+                }
+            }
+
+            generateRandomUpdate() {
+                // Генерируем случайные обновления стакана для демонстрации
+                this.orderbook.bids = [];
+                this.orderbook.asks = [];
+                
+                const basePrice = this.candleData.length > 0 ? 
+                    this.candleData[this.candleData.length - 1].close : 50000;
+                
+                // Генерируем биды (покупки)
+                for (let i = 0; i < 10; i++) {
+                    const price = basePrice - (i + 1) * (Math.random() * 10 + 1);
+                    const volume = Math.random() * 5 + 0.1;
+                    this.orderbook.bids.push({ price, volume });
+                }
+                
+                // Генерируем аски (продажи)
+                for (let i = 0; i < 10; i++) {
+                    const price = basePrice + (i + 1) * (Math.random() * 10 + 1);
+                    const volume = Math.random() * 5 + 0.1;
+                    this.orderbook.asks.push({ price, volume });
+                }
+                
+                this.updateOrderbook();
+            }
+
+            updateFPS() {
+                const now = Date.now();
+                if (now - this.lastSecond >= 1000) {
+                    this.fps = this.messageCount;
+                    this.messageCount = 0;
+                    this.lastSecond = now;
+                    this.elements.fpsCounter.textContent = `${this.fps} fps`;
+                }
+            }
+
+            updateConnectionStatus() {
+                if (this.isConnected) {
+                    this.elements.statusDot.classList.add('connected');
+                    this.elements.statusText.textContent = 'Подключено';
+                    this.elements.connectBtn.disabled = true;
+                    this.elements.disconnectBtn.disabled = false;
+                    this.elements.sendBtn.disabled = false;
+                } else {
+                    this.elements.statusDot.classList.remove('connected');
+                    this.elements.statusText.textContent = 'Отключено';
+                    this.elements.connectBtn.disabled = false;
+                    this.elements.disconnectBtn.disabled = true;
+                    this.elements.sendBtn.disabled = true;
+                    this.fps = 0;
+                    this.elements.fpsCounter.textContent = '0 fps';
+                }
+            }
+
+            changePair(pair) {
+                this.currentPair = pair;
+                this.elements.orderbookHeader.textContent = `Стакан - ${pair.replace('USDT', '/USDT')}`;
+                this.generateMockData(); // Генерируем новые данные для новой пары
+            }
+
+            generateMockData() {
+                // Генерируем исходные данные свечей
+                this.candleData = [];
+                let basePrice = Math.random() * 50000 + 30000;
+                const now = Date.now();
+                
+                for (let i = 100; i >= 0; i--) {
+                    const timestamp = now - i * 60000; // каждую минуту
+                    const open = basePrice;
+                    const change = (Math.random() - 0.5) * basePrice * 0.02;
+                    const close = open + change;
+                    const high = Math.max(open, close) + Math.random() * basePrice * 0.01;
+                    const low = Math.min(open, close) - Math.random() * basePrice * 0.01;
+                    const volume = Math.random() * 100 + 10;
+                    
+                    this.candleData.push({
+                        timestamp,
+                        open,
+                        high,
+                        low,
+                        close,
+                        volume
+                    });
+                    
+                    basePrice = close;
+                }
+            }
+
+            updateOrderbook() {
+                let html = '';
+                
+                // Аски (продажи) - сверху вниз
+                for (let i = this.orderbook.asks.length - 1; i >= 0; i--) {
+                    const ask = this.orderbook.asks[i];
+                    html += `
+                        <div class="orderbook-row ask-row">
+                            <span>${ask.price.toFixed(2)}</span>
+                            <span>${ask.volume.toFixed(4)}</span>
+                        </div>
+                    `;
+                }
+                
+                // Спред
+                if (this.orderbook.bids.length > 0 && this.orderbook.asks.length > 0) {
+                    const spread = this.orderbook.asks[0].price - this.orderbook.bids[0].price;
+                    html += `<div class="spread-row">Спред: ${spread.toFixed(2)}</div>`;
+                }
+                
+                // Биды (покупки) - сверху вниз
+                for (const bid of this.orderbook.bids) {
+                    html += `
+                        <div class="orderbook-row bid-row">
+                            <span>${bid.price.toFixed(2)}</span>
+                            <span>${bid.volume.toFixed(4)}</span>
+                        </div>
+                    `;
+                }
+                
+                this.elements.orderbookTable.innerHTML = html;
+            }
+
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                this.mouseX = e.clientX - rect.left;
+                this.mouseY = e.clientY - rect.top;
+                
+                if (this.isMouseOverChart) {
+                    this.showCrosshair();
+                    this.showTooltip();
+                }
+            }
+
+            handleMouseLeave() {
+                this.isMouseOverChart = false;
+                this.hideCrosshair();
+                this.hideTooltip();
+            }
+
+            showCrosshair() {
+                this.elements.crosshairV.style.display = 'block';
+                this.elements.crosshairH.style.display = 'block';
+                this.elements.crosshairV.style.left = this.mouseX + 'px';
+                this.elements.crosshairH.style.top = this.mouseY + 'px';
+            }
+
+            hideCrosshair() {
+                this.elements.crosshairV.style.display = 'none';
+                this.elements.crosshairH.style.display = 'none';
+            }
+
+            showTooltip() {
+                if (this.candleData.length === 0) return;
+                
+                // Вычисляем цену и время по позиции курсора
+                const chartArea = this.getChartArea();
+                if (this.mouseX < chartArea.left || this.mouseX > chartArea.right ||
+                    this.mouseY < chartArea.top || this.mouseY > chartArea.bottom) {
+                    this.hideTooltip();
+                    return;
+                }
+                
+                const priceRange = this.getPriceRange();
+                const timeRange = this.getTimeRange();
+                
+                const price = priceRange.max - ((this.mouseY - chartArea.top) / chartArea.height) * (priceRange.max - priceRange.min);
+                const timeIndex = Math.floor(((this.mouseX - chartArea.left) / chartArea.width) * this.candleData.length);
+                const candle = this.candleData[Math.max(0, Math.min(timeIndex, this.candleData.length - 1))];
+                
+                // Показываем тултип
+                this.elements.priceTooltip.style.display = 'block';
+                this.elements.priceTooltip.style.left = (this.mouseX + 10) + 'px';
+                this.elements.priceTooltip.style.top = (this.mouseY - 10) + 'px';
+                this.elements.priceTooltip.innerHTML = `
+                    <div>${this.currentPair.replace('USDT', '/USDT')}</div>
+                    <div>Цена: ${price.toFixed(2)}</div>
+                    <div>O: ${candle.open.toFixed(2)}</div>
+                    <div>H: ${candle.high.toFixed(2)}</div>
+                    <div>L: ${candle.low.toFixed(2)}</div>
+                    <div>C: ${candle.close.toFixed(2)}</div>
+                    <div>V: ${candle.volume.toFixed(2)}</div>
+                `;
+                
+                // Показываем метки на осях
+                this.elements.yAxisLabel.style.display = 'block';
+                this.elements.yAxisLabel.style.top = this.mouseY + 'px';
+                this.elements.yAxisLabel.textContent = price.toFixed(2);
+                
+                this.elements.xAxisLabel.style.display = 'block';
+                this.elements.xAxisLabel.style.left = this.mouseX + 'px';
+                this.elements.xAxisLabel.textContent = new Date(candle.timestamp).toLocaleTimeString();
+            }
+
+            hideTooltip() {
+                this.elements.priceTooltip.style.display = 'none';
+                this.elements.yAxisLabel.style.display = 'none';
+                this.elements.xAxisLabel.style.display = 'none';
+            }
+
+            getChartArea() {
+                return {
+                    left: this.chartPadding.left,
+                    top: this.chartPadding.top,
+                    right: this.canvas.width - this.chartPadding.right,
+                    bottom: this.canvas.height - this.chartPadding.bottom,
+                    width: this.chartWidth,
+                    height: this.chartHeight
+                };
+            }
+
+            getPriceRange() {
+                if (this.candleData.length === 0) return { min: 0, max: 100 };
+                
+                let min = Infinity;
+                let max = -Infinity;
+                
+                for (const candle of this.candleData) {
+                    min = Math.min(min, candle.low);
+                    max = Math.max(max, candle.high);
+                }
+                
+                const padding = (max - min) * 0.1;
+                return { min: min - padding, max: max + padding };
+            }
+
+            getTimeRange() {
+                if (this.candleData.length === 0) return { start: 0, end: 1 };
+                return {
+                    start: this.candleData[0].timestamp,
+                    end: this.candleData[this.candleData.length - 1].timestamp
+                };
+            }
+
+            drawChart() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (this.candleData.length === 0) return;
+                
+                const chartArea = this.getChartArea();
+                const priceRange = this.getPriceRange();
+                
+                // Рисуем фон графика
+                this.ctx.fillStyle = '#1e1e1e';
+                this.ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+                
+                // Рисуем сетку
+                this.drawGrid(chartArea, priceRange);
+                
+                // Рисуем свечи
+                this.drawCandles(chartArea, priceRange);
+                
+                // Рисуем оси
+                this.drawAxes(chartArea, priceRange);
+            }
+
+            drawGrid(chartArea, priceRange) {
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 1;
+                
+                // Горизонтальные линии (цена)
+                const priceStep = (priceRange.max - priceRange.min) / 10;
+                for (let i = 0; i <= 10; i++) {
+                    const price = priceRange.min + i * priceStep;
+                    const y = chartArea.bottom - ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(chartArea.left, y);
+                    this.ctx.lineTo(chartArea.right, y);
+                    this.ctx.stroke();
+                }
+                
+                // Вертикальные линии (время)
+                const timeStep = this.candleData.length / 10;
+                for (let i = 0; i <= 10; i++) {
+                    const x = chartArea.left + (i / 10) * chartArea.width;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, chartArea.top);
+                    this.ctx.lineTo(x, chartArea.bottom);
+                    this.ctx.stroke();
+                }
+            }
+
+            drawCandles(chartArea, priceRange) {
+                const candleWidth = Math.max(1, chartArea.width / this.candleData.length * 0.8);
+                const candleSpacing = chartArea.width / this.candleData.length;
+                
+                for (let i = 0; i < this.candleData.length; i++) {
+                    const candle = this.candleData[i];
+                    const x = chartArea.left + i * candleSpacing + candleSpacing / 2;
+                    
+                    const openY = chartArea.bottom - ((candle.open - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    const closeY = chartArea.bottom - ((candle.close - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    const highY = chartArea.bottom - ((candle.high - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    const lowY = chartArea.bottom - ((candle.low - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    
+                    const isGreen = candle.close > candle.open;
+                    const color = isGreen ? '#26a69a' : '#ef5350';
+                    
+                    // Рисуем тень (high-low)
+                    this.ctx.strokeStyle = color;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, highY);
+                    this.ctx.lineTo(x, lowY);
+                    this.ctx.stroke();
+                    
+                    // Рисуем тело свечи
+                    this.ctx.fillStyle = color;
+                    const bodyTop = Math.min(openY, closeY);
+                    const bodyHeight = Math.abs(closeY - openY);
+                    
+                    if (bodyHeight < 1) {
+                        // Если тело очень маленькое, рисуем линию
+                        this.ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, 1);
+                    } else {
+                        this.ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+                    }
+                }
+            }
+
+            drawAxes(chartArea, priceRange) {
+                this.ctx.fillStyle = '#ccc';
+                this.ctx.font = '12px Arial';
+                
+                // Ось Y (цены)
+                const priceStep = (priceRange.max - priceRange.min) / 5;
+                for (let i = 0; i <= 5; i++) {
+                    const price = priceRange.min + i * priceStep;
+                    const y = chartArea.bottom - ((price - priceRange.min) / (priceRange.max - priceRange.min)) * chartArea.height;
+                    
+                    this.ctx.textAlign = 'left';
+                    this.ctx.fillText(price.toFixed(2), chartArea.right + 5, y + 4);
+                }
+                
+                // Ось X (время)
+                const timeStep = Math.floor(this.candleData.length / 5);
+                for (let i = 0; i <= 5; i++) {
+                    const index = Math.min(i * timeStep, this.candleData.length - 1);
+                    const candle = this.candleData[index];
+                    const x = chartArea.left + (index / this.candleData.length) * chartArea.width;
+                    
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(
+                        new Date(candle.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                        x,
+                        chartArea.bottom + 20
+                    );
+                }
+            }
+
+            startRenderLoop() {
+                const render = () => {
+                    this.drawChart();
+                    requestAnimationFrame(render);
+                };
+                render();
+            }
+        }
+
+        // Инициализация терминала
+        const terminal = new TradingTerminal();
+    </script>
+</body>
+</html>

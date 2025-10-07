@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Анкета спортсмена + ИМТ</title>
+  <meta name="color-scheme" content="dark light" />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #243041;
+      --accent: #3b82f6;
+      --accent-700: #2563eb;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(59,130,246,0.15), transparent),
+                  radial-gradient(1000px 500px at 110% 10%, rgba(16,185,129,0.1), transparent),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 920px;
+      background: rgba(17,24,39,0.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      backdrop-filter: saturate(140%) blur(10px);
+      overflow: hidden;
+    }
+    .header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .title { font-size: 18px; font-weight: 700; }
+    .subtitle { color: var(--muted); font-size: 12px; }
+
+    form { padding: 20px; display: grid; gap: 16px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .field { background: rgba(2,6,23,0.35); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .row { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 12px; }
+
+    input[type="text"], input[type="number"], select, output, .pill {
+      width: 100%;
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .inline { display: flex; gap: 10px; flex-wrap: wrap; }
+    .radio, .check { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; background: #0b1220; cursor: pointer; }
+    .radio input, .check input { accent-color: var(--accent); }
+
+    .bmi-box { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+    .bmi-value { font-weight: 800; font-size: 22px; }
+    .bmi-tag { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
+
+    .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px; }
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .05s ease, background .2s ease;
+    }
+    .btn:hover { background: var(--accent-700); }
+    .btn:active { transform: translateY(1px); }
+
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div>
+        <div class="title">Анкета спортсмена</div>
+        <div class="subtitle">Ввод данных + автоматический расчёт ИМТ</div>
+      </div>
+    </div>
+
+    <form id="athlete-form" novalidate>
+      <div class="grid">
+        <div class="field">
+          <label for="fullName">ФИО</label>
+          <input id="fullName" name="fullName" type="text" placeholder="Иванов Иван" autocomplete="name" />
+        </div>
+
+        <div class="field">
+          <label for="bodyType">Тип телосложения</label>
+          <select id="bodyType" name="bodyType">
+            <option value="ecto">Эктоморф</option>
+            <option value="meso" selected>Мезоморф</option>
+            <option value="endo">Эндоморф</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Возраст (лет)</label>
+          <div class="row">
+            <input id="ageRange" type="range" min="10" max="90" step="1" value="25" />
+            <input id="ageNumber" type="number" min="10" max="90" step="1" value="25" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Рост (см)</label>
+          <div class="row">
+            <input id="heightRange" type="range" min="120" max="220" step="1" value="175" />
+            <input id="heightNumber" type="number" min="120" max="220" step="1" value="175" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Вес (кг)</label>
+          <div class="row">
+            <input id="weightRange" type="range" min="35" max="180" step="0.5" value="70" />
+            <input id="weightNumber" type="number" min="35" max="180" step="0.5" value="70" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Цель</label>
+          <div class="inline" role="group" aria-label="Цель">
+            <label class="radio"><input type="radio" name="goal" value="lose" checked />Похудеть</label>
+            <label class="radio"><input type="radio" name="goal" value="gain" />Набрать массу</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Дополнительно</label>
+          <div class="inline">
+            <label class="check"><input id="hasLimits" type="checkbox" />Есть мед. ограничения</label>
+            <label class="check"><input id="agree" type="checkbox" />Согласие на обработку данных</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Индекс массы тела (ИМТ)</label>
+          <div class="bmi-box">
+            <div>
+              <div class="bmi-value" id="bmiValue">—</div>
+              <div class="subtitle" id="bmiFormula">ИМТ = вес(кг) / (рост(м))²</div>
+            </div>
+            <div class="bmi-tag" id="bmiTag">Категория: —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="subtitle" id="hint">Поля можно менять слайдерами или вручную.</div>
+        <div>
+          <button class="btn" type="submit">Сохранить</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const ageRange = $('ageRange');
+    const ageNumber = $('ageNumber');
+    const heightRange = $('heightRange');
+    const heightNumber = $('heightNumber');
+    const weightRange = $('weightRange');
+    const weightNumber = $('weightNumber');
+    const bmiValue = $('bmiValue');
+    const bmiTag = $('bmiTag');
+    const form = document.getElementById('athlete-form');
+
+    function syncPair(rangeEl, numberEl) {
+      const onRange = () => { numberEl.value = rangeEl.value; computeBMI(); };
+      const onNumber = () => {
+        const min = Number(numberEl.min), max = Number(numberEl.max);
+        let v = Number(numberEl.value);
+        if (Number.isFinite(min) && v < min) v = min;
+        if (Number.isFinite(max) && v > max) v = max;
+        numberEl.value = v;
+        rangeEl.value = v;
+        computeBMI();
+      };
+      rangeEl.addEventListener('input', onRange);
+      numberEl.addEventListener('input', onNumber);
+    }
+
+    function getBMICategory(bmi) {
+      if (!Number.isFinite(bmi)) return { label: '—', color: 'var(--muted)' };
+      if (bmi < 18.5) return { label: 'Недостаток массы', color: 'var(--warn)' };
+      if (bmi < 25) return { label: 'Норма', color: 'var(--good)' };
+      if (bmi < 30) return { label: 'Избыточная масса', color: 'var(--warn)' };
+      return { label: 'Ожирение', color: 'var(--bad)' };
+    }
+
+    function computeBMI() {
+      const heightCm = Number(heightNumber.value);
+      const weightKg = Number(weightNumber.value);
+      const heightM = heightCm / 100;
+      const bmi = weightKg && heightM ? weightKg / (heightM * heightM) : NaN;
+      if (!Number.isFinite(bmi)) {
+        bmiValue.textContent = '—';
+        bmiTag.textContent = 'Категория: —';
+        bmiTag.style.color = 'var(--muted)';
+        return;
+      }
+      const rounded = Math.round(bmi * 10) / 10;
+      const { label, color } = getBMICategory(rounded);
+      bmiValue.textContent = String(rounded);
+      bmiTag.textContent = `Категория: ${label}`;
+      bmiTag.style.color = color;
+    }
+
+    // Связка слайдеров и числовых полей
+    syncPair(ageRange, ageNumber);
+    syncPair(heightRange, heightNumber);
+    syncPair(weightRange, weightNumber);
+
+    // Первичный расчёт
+    computeBMI();
+
+    // Сабмит
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const payload = Object.fromEntries(data.entries());
+      // Демонстрация сохранения (вместо сервера):
+      console.log('Данные спортсмена', payload);
+      alert('Данные сохранены локально (см. консоль). ИМТ: ' + bmiValue.textContent);
+    });
+  </script>
+  </body>
+  </html>

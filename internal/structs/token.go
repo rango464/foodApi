@@ -2,8 +2,8 @@ package structs
 
 type (
 	AuthTokens struct {
-		AccessToken  string `json:"Access"`
-		RefreshToken string `json:"Refresh"`
+		AccessToken  string `json:"access"`
+		RefreshToken string `json:"refresh"`
 	}
 	TokenClaims struct {
 		Sub  uint64 // ид пользователя

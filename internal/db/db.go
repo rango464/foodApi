@@ -31,7 +31,7 @@ func InitDB() (*gorm.DB, error) {
 	}
 
 	if err := db.AutoMigrate(&st.UserMailConfirm{}); err != nil {
-		log.Fatal("Could not migrate: struct = AuthUser", err)
+		log.Fatal("Could not migrate: struct = UserMailConfirm", err)
 	}
 	if err := db.AutoMigrate(&st.AuthUser{}); err != nil {
 		log.Fatal("Could not migrate: struct = AuthUser", err)

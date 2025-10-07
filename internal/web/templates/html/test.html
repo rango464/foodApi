@@ -1,0 +1,129 @@
+<!-- <!doctype html>
+<html>
+  <body>
+    <input id="msg" placeholder="Введите сообщение">
+    <button onclick="send()">Send</button>
+    <pre id="log"></pre>
+    <script>
+      const ws = new WebSocket("ws://localhost:1323/ws");
+      const log = (t) => document.getElementById('log').textContent += t + "\n";
+      ws.onopen = () => log("connected");
+      ws.onmessage = (e) => log("echo: " + e.data);
+      ws.onclose = () => log("closed");
+      function send(){
+        const v = document.getElementById('msg').value;
+        ws.send(v);
+      }
+    </script>
+  </body>
+</html> -->
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>WS Echo Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    textarea { width: 100%; height: 120px; }
+    pre { background: #111; color: #0f0; padding: 12px; overflow: auto; }
+    .row { display: flex; gap: 8px; margin: 8px 0; }
+    input { flex: 1; padding: 8px; }
+    button { padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket (Echo + Go)</h1>
+  <div class="row">
+    <input id="url" value="ws://localhost:1323/ws/WsStreamTickers/16"/>
+    <button id="connect">Подключиться</button>
+    <button id="disconnect">Отключиться</button>
+    <button id="help">Отправить help</button>
+  </div>
+  <textarea id="payload"></textarea>
+  <div class="row">
+    <button id="send">Отправить из поля</button>
+    <!-- <button id="stream">Отправить{ "command": "livestream", "data": {"fps":0.5} }</button>
+    <button id="addsymbol">Отправить{ "command": "addsymbol", "data": {"symbol":"LTCBTC"} }</button>
+    <button id="stopstream">Отправить{ "command": "stopstream" }</button> -->
+    
+    <button id="clear">Очистить лог</button>
+  </div>
+  <pre id="log"></pre>
+  <p>{ "command": "livestream", "symbols":["BTCUSDT", "ETHUSDT","BTCUSDT", "BNBUSDT", "BNBBTC", "LTCBTC"], "fps":0.5 }</p>
+  <p>{ "command": "stopstream",  "symbols":["BTCUSDT", "ETHUSDT","BTCUSDT", "BNBUSDT", "BNBBTC", "LTCBTC"] }</p>
+
+<script>
+let ws;
+
+function log(...args) {
+  const pre = document.getElementById('log');
+  grafArr.push(args)
+  pre.textContent = args.join(' ') + "["+grafArr.length+"]\n";
+  pre.scrollTop = pre.scrollHeight;
+}
+var grafArr=Array();
+function connect() {
+  const url = document.getElementById('url').value;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+  }
+  ws = new WebSocket(url);
+  ws.onopen = () => log("[open]", url);
+  ws.onclose = e => log("[close]", e.code, e.reason || "");
+  ws.onerror = e => log("[error]", e.message || e.toString());
+  ws.onmessage = e => log("[recv]", e.data);
+}
+document.getElementById('connect').onclick = () => {
+  connect()
+};
+
+document.getElementById('disconnect').onclick = () => {
+  ws.close()
+};
+
+document.getElementById('send').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return log("WS не подключён");
+  }
+  const text = document.getElementById('payload').value;
+  ws.send(text);
+  log("[sent]", text);
+};
+
+document.getElementById('stream').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return log("WS не подключён");
+  }
+  const text = '{ "command": "livestream", "data": {"fps":0.5} }';
+  ws.send(text);
+  log("[sent]", text);
+};
+
+document.getElementById('addsymbol').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return log("WS не подключён");
+  }
+  const text = '{ "command": "addsymbol", "data": {"symbol":"LTCBTC"} }';
+  ws.send(text);
+  log("[sent]", text);
+};
+
+document.getElementById('stopstream').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return log("WS не подключён");
+  }
+  const text = '{ "command": "stopstream" }';
+  ws.send(text);
+  log("[sent]", text);
+};
+
+document.getElementById('help').onclick = () => {
+  document.getElementById('payload').value = JSON.stringify({ command: "help" }, null, 2);
+};
+
+document.getElementById('clear').onclick = () => {
+  document.getElementById('log').textContent = "";
+};
+</script>
+</body>
+</html>
